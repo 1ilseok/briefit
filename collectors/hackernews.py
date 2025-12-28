@@ -1,6 +1,6 @@
 """
 Hacker News API Collector
-- Algolia HN Search API를 사용하여 지난 주(월~일) 베스트 스토리 20개 수집
+- Algolia HN Search API를 사용하여 최근 N일간 베스트 스토리 수집
 """
 
 import requests
@@ -10,37 +10,34 @@ from datetime import datetime, timedelta, timezone
 ALGOLIA_HN_API = "https://hn.algolia.com/api/v1/search"
 
 
-def get_last_week_range() -> tuple[datetime, datetime]:
+def get_date_range(days: int = 7) -> tuple[datetime, datetime]:
     """
-    Get the date range for last week (Monday 00:00 ~ Sunday 23:59).
+    Get the date range for the past N days.
+
+    Args:
+        days: Number of days to look back
 
     Returns:
         Tuple of (start_date, end_date) in UTC
     """
-    today = datetime.now(timezone.utc).date()
-    # Find this week's Monday
-    this_monday = today - timedelta(days=today.weekday())
-    # Last week's Monday and Sunday
-    last_monday = this_monday - timedelta(days=7)
-    last_sunday = this_monday - timedelta(days=1)
+    now = datetime.now(timezone.utc)
+    start_date = now - timedelta(days=days)
 
-    start_date = datetime.combine(last_monday, datetime.min.time(), timezone.utc)
-    end_date = datetime.combine(last_sunday, datetime.max.time(), timezone.utc)
-
-    return start_date, end_date
+    return start_date, now
 
 
-def collect(limit: int = 20) -> list[dict]:
+def collect(days: int = 7, limit: int = 20) -> list[dict]:
     """
-    Collect top stories from Hacker News for the last week.
+    Collect top stories from Hacker News for the past N days.
 
     Args:
+        days: Number of days to look back (default: 7)
         limit: Maximum number of stories to return (default: 20)
 
     Returns:
         List of story information dictionaries sorted by score
     """
-    start_date, end_date = get_last_week_range()
+    start_date, end_date = get_date_range(days)
 
     # Convert to Unix timestamps
     start_ts = int(start_date.timestamp())
@@ -83,10 +80,10 @@ def collect(limit: int = 20) -> list[dict]:
 
 if __name__ == "__main__":
     # Test the collector
-    start, end = get_last_week_range()
+    start, end = get_date_range(days=7)
     print(f"Fetching top 20 stories from {start.date()} to {end.date()}\n")
 
-    stories = collect(limit=20)
+    stories = collect(days=7, limit=20)
     print(f"Found {len(stories)} stories\n")
     for s in stories:
         print(f"[{s['score']}pts] {s['title']}")

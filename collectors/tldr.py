@@ -1,6 +1,7 @@
 """
 TLDR Newsletter Scraper
-- tldr.tech에서 최신 뉴스레터 기사 수집
+- tldr.tech에서 최근 7일간 뉴스레터 기사 수집
+- 날짜별 상위 3개씩 (편집팀 배치 순서 기준)
 """
 
 import requests
@@ -9,32 +10,46 @@ from datetime import datetime, timedelta
 import re
 
 
-def get_latest_newsletter_url() -> str:
-    """Get the URL for the latest TLDR newsletter."""
+def get_newsletter_urls(days: int = 7) -> list[tuple[str, str]]:
+    """
+    Get URLs for TLDR newsletters for the past N days.
+
+    Args:
+        days: Number of days to look back
+
+    Returns:
+        List of (url, date_str) tuples for valid weekdays
+    """
+    urls = []
     today = datetime.now()
-    # Try today first, then go back up to 3 days
-    for days_back in range(4):
+
+    for days_back in range(days + 7):  # Extra buffer for weekends
+        if len(urls) >= days:
+            break
+
         date = today - timedelta(days=days_back)
         # Skip weekends (TLDR doesn't publish on weekends)
         if date.weekday() >= 5:
             continue
+
         date_str = date.strftime("%Y-%m-%d")
-        return f"https://tldr.tech/tech/{date_str}"
-    return "https://tldr.tech/tech"
+        urls.append((f"https://tldr.tech/tech/{date_str}", date_str))
+
+    return urls[:days]
 
 
-def collect(limit: int = 10) -> list[dict]:
+def fetch_articles_from_page(url: str, date_str: str, limit: int = 3) -> list[dict]:
     """
-    Collect articles from TLDR Tech newsletter.
+    Fetch top articles from a single TLDR newsletter page.
 
     Args:
-        limit: Maximum number of articles to return (default: 10)
+        url: Newsletter URL
+        date_str: Date string for the newsletter
+        limit: Maximum number of articles to return from this page
 
     Returns:
         List of article information dictionaries
     """
-    url = get_latest_newsletter_url()
-
     try:
         response = requests.get(
             url,
@@ -45,7 +60,7 @@ def collect(limit: int = 10) -> list[dict]:
         )
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f"[TLDR] Error fetching page: {e}")
+        print(f"[TLDR] Error fetching {date_str}: {e}")
         return []
 
     soup = BeautifulSoup(response.text, "lxml")
@@ -56,6 +71,9 @@ def collect(limit: int = 10) -> list[dict]:
 
     seen_urls = set()
     for link in article_links:
+        if len(results) >= limit:
+            break
+
         href = link.get("href", "")
 
         # Skip if already seen
@@ -91,24 +109,55 @@ def collect(limit: int = 10) -> list[dict]:
             "title": title,
             "url": href.split("?")[0],  # Remove utm params for clean URL
             "summary": summary,
+            "date": date_str,
         })
 
-        if len(results) >= limit:
-            break
+    return results
+
+
+def collect(days: int = 7, per_day: int = 3) -> list[dict]:
+    """
+    Collect top articles from TLDR Tech newsletters for the past N days.
+
+    Args:
+        days: Number of days to look back (default: 7)
+        per_day: Number of top articles per day (default: 3)
+
+    Returns:
+        List of article information dictionaries
+    """
+    urls = get_newsletter_urls(days)
+    results = []
+    seen_urls = set()
+
+    for url, date_str in urls:
+        articles = fetch_articles_from_page(url, date_str, per_day)
+
+        for article in articles:
+            # Skip duplicates across days
+            if article["url"] in seen_urls:
+                continue
+            seen_urls.add(article["url"])
+            results.append(article)
 
     return results
 
 
 if __name__ == "__main__":
     # Test the collector
-    print(f"Fetching from: {get_latest_newsletter_url()}\n")
-    articles = collect(limit=10)
+    print("Fetching TLDR articles (last 7 days, top 3 per day)...\n")
+    articles = collect(days=7, per_day=3)
     print(f"Found {len(articles)} articles\n")
+
+    current_date = None
     for a in articles:
+        if a.get('date') != current_date:
+            current_date = a.get('date')
+            print(f"\n=== {current_date} ===")
+
         title_display = a['title'][:70] + "..." if len(a['title']) > 70 else a['title']
         print(f"• {title_display}")
         print(f"  URL: {a['url']}")
         if a.get('summary'):
             summary_display = a['summary'][:100] + "..." if len(a['summary']) > 100 else a['summary']
             print(f"  Summary: {summary_display}")
-        print()
