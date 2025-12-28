@@ -1,0 +1,19 @@
+# HTTP requests
+requests>=2.31.0
+httpx>=0.25.0
+
+# Web scraping
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# OpenAI API
+openai>=1.0.0
+
+# Email
+resend>=0.5.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Scheduling (for local testing)
+schedule>=1.2.0
