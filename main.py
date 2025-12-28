@@ -43,6 +43,17 @@ def main():
     print("📡 Collecting news...")
     news = collect_all()
 
+    # 디버깅: 소스별 수집 개수 출력
+    print("\n=== 수집 결과 ===")
+    source_counts = {}
+    for item in news:
+        source = item.get("source", "Unknown")
+        source_counts[source] = source_counts.get(source, 0) + 1
+    for source, count in source_counts.items():
+        print(f"  {source}: {count}개")
+    print(f"  총합: {len(news)}개")
+    print("=================\n")
+
     print(f"📝 Summarizing {len(news)} items...")
     summary = summarize(news)
 
